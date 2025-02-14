@@ -1,16 +1,34 @@
-What each module does:
 
-init.lua:
-Loads and combines all submodules, offering a simple setup() interface for users.
+# nvim_jupyter
 
-config.lua:
-Provides default configuration (for example, which Python command to run, output window height, etc.) and lets users override settings.
+A **NeoVim plugin** that lets you read, write, and run Jupyter notebooks **without ever seeing raw JSON**. You’ll work with notebook cells as simple `# %%` markers, while on disk it’s a real `.ipynb` that opens in VS Code or Jupyter.
 
-cell.lua:
-Implements commands to create new cells (code or markdown), sets up syntax highlighting (using a marker like # %%), and provides helper functions (e.g. to detect the current cell’s boundaries).
+## Features
 
-runner.lua:
-Extracts the current cell’s content and executes it. It uses Neovim’s asynchronous job API to run the cell’s code (e.g. via Python) and then collects output.
+- **Round-Trip Conversion**:  
+  - Opening a `.ipynb` reads the JSON and shows `# %%` lines for each cell.  
+  - Saving writes a standard `.ipynb` file (with metadata and outputs preserved).  
+- **Cell Execution**:  
+  - Use a persistent IPython kernel to execute cells in-place.  
+  - View outputs in a floating window or split.  
+- **Convenient Commands**:  
+  - `:JupyterNewCodeCell` or `<leader>jc` inserts a new code cell marker.  
+  - `:JupyterNewMarkdownCell` or `<leader>jm` inserts a new markdown cell marker.  
+  - `:JupyterRunCell` or `<leader>jr` runs the current cell.  
 
-output.lua:
-Creates (or reuses) a split window at the bottom of your editor where cell output is shown. You can later extend this module to provide richer output formatting.
+## Installation
+
+Use your preferred plugin manager, for example with **lazy.nvim**:
+
+```lua
+{
+  "YourUser/nvim_jupyter",
+  config = function()
+    require("nvim_jupyter").setup({
+      -- Optional overrides
+      persistent_kernel_cmd = "ipython --simple-prompt --no-banner",
+      auto_sync = true,
+    })
+  end
+}
+
