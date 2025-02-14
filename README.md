@@ -1,7 +1,7 @@
 
 # nvim_jupyter
 
-A **NeoVim plugin** that lets you read, write, and run Jupyter notebooks **without ever seeing raw JSON**. You’ll work with notebook cells as simple `# %%` markers, while on disk it’s a real `.ipynb` that opens in VS Code or Jupyter.
+A **NeoVim plugin** that lets you read, write, and run Jupyter notebooks. You’ll work with notebook cells as simple `# %%` markers, while on disk it’s a real `.ipynb` that opens in VS Code or Jupyter.
 
 ## Features
 
