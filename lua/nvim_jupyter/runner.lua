@@ -20,6 +20,13 @@ local marker = "<<<END_OF_CELL>>>"
 -- Pattern to match IPython prompt lines
 local prompt_pattern = "^In %[[0-9]+%]:%s*$"
 
+-- Pattern to detect variable listing end
+local variables_end_pattern = "<<<VARIABLES_END>>>"
+
+-- Variables collection state
+local collecting_variables = false
+local variable_output = {}
+
 -- Keep track of active kernels for different notebooks
 M.kernels = {}
 
@@ -94,6 +101,9 @@ function M.start_kernel()
             -- Record execution in workspace with protected call
             pcall(function() workspace.record_execution(file_path) end)
             
+            -- Collect variables after cell execution
+            pcall(function() workspace.collect_variables(M.kernel_channel) end)
+            
             -- Clear output buffer
             M.output_buffer = {}
             
@@ -107,6 +117,23 @@ function M.start_kernel()
             if count_match then
               M.execution_count = tonumber(count_match)
             end
+          elseif line:find(variables_end_pattern) then
+            -- End of variables listing - process them
+            pcall(function()
+              local var_output = {}
+              -- Find variable list output in buffer
+              for _, l in ipairs(M.output_buffer) do
+                if l:match("^%[.*%]$") then
+                  table.insert(var_output, l)
+                end
+              end
+              workspace.update_variables(M.kernel_channel, var_output)
+            end)
+          elseif line:match("^'[^']+': [^%s]+$") then
+            -- This is a variable type declaration
+            pcall(function()
+              workspace.process_variable_type(M.kernel_channel, line)
+            end)
           else
             table.insert(M.output_buffer, line)
           end

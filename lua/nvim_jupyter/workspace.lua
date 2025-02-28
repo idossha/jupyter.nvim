@@ -9,6 +9,9 @@ workspace.current_session = nil
 workspace.win_id = nil
 workspace.buf_id = nil
 
+-- Store workspace variables
+workspace.variables = {}
+
 -- Add a new notebook session to workspace
 function workspace.register_session(file_path, kernel_id)
   local session = {
@@ -66,6 +69,80 @@ local function format_time(timestamp)
   end
 end
 
+-- Collect workspace variables from the kernel
+function workspace.collect_variables(kernel_id)
+  -- Initialize variables for this kernel if not already done
+  if not workspace.variables[kernel_id] then
+    workspace.variables[kernel_id] = {}
+  end
+  
+  -- Skip if no kernel is active
+  if not kernel_id or vim.fn.jobwait({kernel_id}, 0)[1] ~= -1 then
+    return
+  end
+  
+  -- Run %who command in the kernel to get a list of variables
+  vim.fn.chansend(kernel_id, "%who_ls\nprint('<<<VARIABLES_END>>>')\n")
+  
+  -- Variables will be collected asynchronously by the kernel's stdout handler
+end
+
+-- Function to be called by the runner when variables are received
+function workspace.update_variables(kernel_id, var_output)
+  if not workspace.variables[kernel_id] then
+    workspace.variables[kernel_id] = {}
+  end
+  
+  -- Clear variable details first (keeping any type information)
+  for k, _ in pairs(workspace.variables[kernel_id]) do
+    workspace.variables[kernel_id][k].value = nil
+  end
+  
+  -- Process output from %who_ls
+  if var_output and #var_output > 0 then
+    -- Extract the variable names (should be a Python list)
+    local var_str = table.concat(var_output, "\n")
+    
+    -- Try to extract the variable names (format: ['var1', 'var2', ...])
+    local var_list = var_str:match("%[(.-)%]")
+    if var_list then
+      for var_name in var_list:gmatch("'([^']+)'") do
+        -- Register the variable
+        if not workspace.variables[kernel_id][var_name] then
+          workspace.variables[kernel_id][var_name] = {
+            name = var_name,
+            type = "Unknown"
+          }
+        end
+      end
+    end
+  end
+  
+  -- Now fetch type information for each variable
+  for var_name, _ in pairs(workspace.variables[kernel_id]) do
+    -- Send commands to get variable type
+    local cmd = string.format(
+      "try:\n" ..
+      "    print(f\"'%s': {type(%s).__name__}\")\n" ..
+      "except:\n" ..
+      "    print(\"'%s': Unknown\")\n", 
+      var_name, var_name, var_name)
+    
+    vim.fn.chansend(kernel_id, cmd)
+  end
+end
+
+-- Process variable type information received from kernel
+function workspace.process_variable_type(kernel_id, line)
+  if not workspace.variables[kernel_id] then return end
+  
+  -- Format should be: 'var_name': type_name
+  local var_name, var_type = line:match("'([^']+)':%s*(.+)")
+  if var_name and var_type and workspace.variables[kernel_id][var_name] then
+    workspace.variables[kernel_id][var_name].type = var_type
+  end
+end
+
 -- Create and show workspace UI
 function workspace.show_ui()
   if workspace.win_id and vim.api.nvim_win_is_valid(workspace.win_id) then
@@ -78,6 +155,14 @@ function workspace.show_ui()
   if not workspace.buf_id or not vim.api.nvim_buf_is_valid(workspace.buf_id) then
     workspace.buf_id = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_option(workspace.buf_id, 'bufhidden', 'wipe')
+  end
+  
+  -- Update variables for the current session
+  if workspace.current_session and workspace.sessions[workspace.current_session] then
+    local kernel_id = workspace.sessions[workspace.current_session].kernel_id
+    if kernel_id then
+      workspace.collect_variables(kernel_id)
+    end
   end
   
   -- Prepare content
@@ -94,6 +179,31 @@ function workspace.show_ui()
     table.insert(lines, string.format("  • Cells: %d | Last run: %s", 
                                      session.cell_count, 
                                      format_time(session.last_run)))
+    
+    -- Add variables for this session if available
+    if session.kernel_id and workspace.variables[session.kernel_id] then
+      local vars = workspace.variables[session.kernel_id]
+      local var_count = 0
+      for _ in pairs(vars) do var_count = var_count + 1 end
+      
+      if var_count > 0 then
+        table.insert(lines, "  • Variables:")
+        
+        -- Sort variables alphabetically
+        local var_names = {}
+        for name, _ in pairs(vars) do
+          table.insert(var_names, name)
+        end
+        table.sort(var_names)
+        
+        -- Add each variable
+        for _, name in ipairs(var_names) do
+          local var = vars[name]
+          table.insert(lines, string.format("    - %s (%s)", var.name, var.type or "Unknown"))
+        end
+      end
+    end
+    
     table.insert(lines, "  ──────────────────────────────────")
   end
   
