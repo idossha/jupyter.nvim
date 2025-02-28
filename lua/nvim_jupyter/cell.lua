@@ -165,8 +165,20 @@ function cell.add_cell(cell_type)
   if cell_type == "markdown" then
     marker = "# %% [markdown]"
   end
+  
   local row = vim.api.nvim_win_get_cursor(0)[1]
-  vim.api.nvim_buf_set_lines(0, row, row, false, { marker, "" })
+  local bufnr = vim.api.nvim_get_current_buf()
+  
+  -- Insert basic cell marker
+  vim.api.nvim_buf_set_lines(bufnr, row, row, false, { marker, "" })
+  
+  -- If cell UI module is available, enhance the cell marker with borders
+  local cell_ui_loaded, cell_ui = pcall(require, "nvim_jupyter.cell_ui")
+  if cell_ui_loaded then
+    cell_ui.enhance_cell_marker(bufnr, row + 1, cell_type)
+  end
+  
+  -- Position cursor after the cell marker
   vim.api.nvim_win_set_cursor(0, { row + 2, 0 })
 end
 
@@ -213,6 +225,25 @@ function cell.move_to_next_cell()
 
   if next_cell_line then
     vim.api.nvim_win_set_cursor(0, { next_cell_line, 0 })
+  end
+end
+
+function cell.move_to_prev_cell()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local start_line, _ = cell.get_current_cell_range()
+  local prev_cell_line = nil
+  
+  -- Start from the line before the current cell's start
+  for i = start_line - 1, 1, -1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, i - 1, i, false)[1]
+    if line and line:match("^# %%") then
+      prev_cell_line = i
+      break
+    end
+  end
+  
+  if prev_cell_line then
+    vim.api.nvim_win_set_cursor(0, { prev_cell_line, 0 })
   end
 end
 
