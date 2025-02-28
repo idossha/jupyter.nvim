@@ -21,16 +21,14 @@ local colors = {
 
 -- Create highlight groups
 function cell_ui.setup_highlights()
-  vim.cmd([[
-    highlight default JupyterCodeCellBorder guifg=]] .. colors.code_border .. [[ gui=bold
-    highlight default JupyterCodeCell guibg=]] .. colors.code_cell_bg .. [[
-    highlight default JupyterMarkdownCellBorder guifg=]] .. colors.markdown_border .. [[ gui=bold
-    highlight default JupyterMarkdownCell guibg=]] .. colors.markdown_cell_bg .. [[
-    highlight default JupyterActiveCell guibg=]] .. colors.active_cell_bg .. [[
-    highlight default JupyterActiveCellBorder guifg=]] .. colors.active_cell_border .. [[ gui=bold
-    highlight default JupyterExecutionCount guibg=]] .. colors.execution_count_bg .. [[ guifg=#ffffff gui=bold
-    highlight default JupyterRunningIndicator guifg=]] .. colors.running_indicator .. [[ gui=bold
-  ]])
+  vim.cmd("highlight default JupyterCodeCellBorder guifg=" .. colors.code_border .. " gui=bold")
+  vim.cmd("highlight default JupyterCodeCell guibg=" .. colors.code_cell_bg)
+  vim.cmd("highlight default JupyterMarkdownCellBorder guifg=" .. colors.markdown_border .. " gui=bold")
+  vim.cmd("highlight default JupyterMarkdownCell guibg=" .. colors.markdown_cell_bg)
+  vim.cmd("highlight default JupyterActiveCell guibg=" .. colors.active_cell_bg)
+  vim.cmd("highlight default JupyterActiveCellBorder guifg=" .. colors.active_cell_border .. " gui=bold")
+  vim.cmd("highlight default JupyterExecutionCount guibg=" .. colors.execution_count_bg .. " guifg=#ffffff gui=bold")
+  vim.cmd("highlight default JupyterRunningIndicator guifg=" .. colors.running_indicator .. " gui=bold")
 end
 
 -- Parse and store all cell boundaries in the current buffer

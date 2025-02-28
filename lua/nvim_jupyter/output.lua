@@ -101,11 +101,9 @@ function output.display_output(lines, cell_outputs)
   vim.api.nvim_win_set_option(win_id, "cursorline", false)
   
   -- Set highlight groups for better readability
-  vim.cmd([[
-    highlight JupyterOutputHeader guifg=#7dcfff gui=bold
-    highlight JupyterOutputBorder guifg=#565f89
-    highlight JupyterOutputHelp guifg=#9d7cd8
-  ]])
+  vim.cmd("highlight JupyterOutputHeader guifg=#7dcfff gui=bold")
+  vim.cmd("highlight JupyterOutputBorder guifg=#565f89")
+  vim.cmd("highlight JupyterOutputHelp guifg=#9d7cd8")
   
   -- Apply highlights with matchadd()
   vim.api.nvim_win_call(win_id, function()
@@ -182,11 +180,9 @@ function output.display_in_split(lines, cell_outputs)
     vim.cmd("vertical resize 60")
     
     -- Set highlight groups for better readability
-    vim.cmd([[
-      highlight JupyterOutputHeader guifg=#7dcfff gui=bold
-      highlight JupyterOutputBorder guifg=#565f89
-      highlight JupyterOutputHelp guifg=#9d7cd8
-    ]])
+    vim.cmd("highlight JupyterOutputHeader guifg=#7dcfff gui=bold")
+    vim.cmd("highlight JupyterOutputBorder guifg=#565f89")
+    vim.cmd("highlight JupyterOutputHelp guifg=#9d7cd8")
     
     -- Apply highlights with matchadd()
     vim.fn.matchadd('JupyterOutputHeader', "^│\\s*CELL OUTPUT\\s*│$")

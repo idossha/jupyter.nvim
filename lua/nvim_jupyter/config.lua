@@ -186,11 +186,9 @@ function config.show_keymap_help()
   vim.api.nvim_win_set_option(win_id, "winblend", 10)
   
   -- Set highlight groups
-  vim.cmd([[
-    highlight JupyterKeymapHeader guifg=#7dcfff gui=bold
-    highlight JupyterKeymapBorder guifg=#565f89
-    highlight JupyterKeymapKey guifg=#9ece6a gui=bold
-  ]])
+  vim.cmd("highlight JupyterKeymapHeader guifg=#7dcfff gui=bold")
+  vim.cmd("highlight JupyterKeymapBorder guifg=#565f89")
+  vim.cmd("highlight JupyterKeymapKey guifg=#9ece6a gui=bold")
   
   -- Apply highlights
   vim.api.nvim_win_call(win_id, function()
