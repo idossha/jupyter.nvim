@@ -115,6 +115,7 @@ Jupyter.nvim provides several user commands:
 - `:JupyterKeymapHelp` - Show a help window with all keymaps and descriptions
 - `:JupyterToggleVisual` - Toggle visual cell borders on/off
 - `:JupyterOpenServer` - Open the current notebook in a Jupyter web server
+- `:JupyterFixNotebook` - Fix notebook format for better compatibility
 
 ## Keyboard Shortcuts
 

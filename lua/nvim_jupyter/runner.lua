@@ -280,55 +280,8 @@ function M.restart_kernel()
   end
 end
 
--- Function to fix notebook metadata if needed
-local function fix_notebook_metadata(file_path)
-  -- Read the file
-  local f = io.open(file_path, "r")
-  if not f then
-    return false
-  end
-  
-  local content = f:read("*all")
-  f:close()
-  
-  -- Try to decode the JSON
-  local status, notebook = pcall(vim.fn.json_decode, content)
-  if not status or type(notebook) ~= "table" then
-    return false
-  end
-  
-  -- Check for problems in metadata and cells
-  local needs_fix = false
-  
-  -- Fix empty metadata array (should be an object)
-  if type(notebook.metadata) == "table" and vim.tbl_islist(notebook.metadata) and #notebook.metadata == 0 then
-    notebook.metadata = {}
-    needs_fix = true
-  end
-  
-  -- Fix cell metadata
-  if notebook.cells then
-    for _, cell in ipairs(notebook.cells) do
-      if type(cell.metadata) == "table" and vim.tbl_islist(cell.metadata) and #cell.metadata == 0 then
-        cell.metadata = {}
-        needs_fix = true
-      end
-    end
-  end
-  
-  -- If we found issues, write the fixed notebook back
-  if needs_fix then
-    local fixed_content = vim.fn.json_encode(notebook)
-    f = io.open(file_path, "w")
-    if f then
-      f:write(fixed_content)
-      f:close()
-      return true
-    end
-  end
-  
-  return false
-end
+-- Use our dedicated notebook fixer
+local fix_notebook = require("nvim_jupyter.fix_notebook")
 
 -- Function to launch the notebook in a Jupyter server
 function M.open_in_jupyter_server()
@@ -345,9 +298,9 @@ function M.open_in_jupyter_server()
   vim.cmd("write")
   
   -- Try to fix any compatibility issues with the notebook format
-  local fixed = fix_notebook_metadata(file_path)
+  local fixed = fix_notebook.fix_notebook_file(file_path)
   if fixed then
-    vim.notify("Fixed notebook metadata for better compatibility", vim.log.levels.INFO)
+    vim.notify("Fixed notebook format for better compatibility with Jupyter server", vim.log.levels.INFO)
   end
   
   -- Use the directory-based approach which is more reliable

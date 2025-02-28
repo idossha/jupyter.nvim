@@ -10,13 +10,14 @@
 local M = {}
 
 -- Load all submodules and expose them
-M.config    = require("nvim_jupyter.config")
-M.cell      = require("nvim_jupyter.cell")
-M.cell_ui   = require("nvim_jupyter.cell_ui")
-M.runner    = require("nvim_jupyter.runner")
-M.output    = require("nvim_jupyter.output")
-M.image     = require("nvim_jupyter.image")
-M.workspace = require("nvim_jupyter.workspace")
+M.config       = require("nvim_jupyter.config")
+M.cell         = require("nvim_jupyter.cell")
+M.cell_ui      = require("nvim_jupyter.cell_ui")
+M.runner       = require("nvim_jupyter.runner")
+M.output       = require("nvim_jupyter.output")
+M.image        = require("nvim_jupyter.image")
+M.workspace    = require("nvim_jupyter.workspace")
+M.fix_notebook = require("nvim_jupyter.fix_notebook")
 
 -- Initialization function called from plugin entry point
 function M.setup(user_config)
@@ -31,6 +32,11 @@ function M.setup(user_config)
   M.cell_ui.setup()
   M.runner.setup()
   M.workspace.setup()
+  
+  -- Create command for fixing notebooks
+  vim.api.nvim_create_user_command('JupyterFixNotebook', function()
+    M.fix_notebook.fix_current_notebook()
+  end, {})
   
   -- Display a welcome message
   if user_config and user_config.show_welcome ~= false then
