@@ -280,6 +280,59 @@ function M.restart_kernel()
   end
 end
 
+-- Function to launch the notebook in a Jupyter server
+function M.open_in_jupyter_server()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local file_path = vim.api.nvim_buf_get_name(bufnr)
+  
+  -- Check if the current file is a Jupyter notebook
+  if not file_path:match("%.ipynb$") then
+    vim.notify("Current file is not a Jupyter notebook", vim.log.levels.ERROR)
+    return
+  end
+  
+  -- Save the file first to ensure all changes are written
+  vim.cmd("write")
+  
+  -- Determine the proper command based on the Jupyter version
+  local cmd = "jupyter notebook"
+  
+  -- Check if the more modern jupyter-lab is available
+  if vim.fn.executable("jupyter-lab") == 1 then
+    cmd = "jupyter-lab"
+  end
+  
+  -- Build the command with the file path
+  local full_cmd = cmd .. " " .. vim.fn.shellescape(file_path)
+  
+  -- Notify the user
+  vim.notify("Opening notebook in Jupyter server...", vim.log.levels.INFO)
+  
+  -- Launch the Jupyter server in the background
+  vim.fn.jobstart(full_cmd, {
+    detach = true,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 then
+        vim.notify("Failed to open notebook in Jupyter server (exit code: " .. exit_code .. ")", 
+                  vim.log.levels.ERROR)
+      end
+    end
+  })
+  
+  -- Try to determine the URL and show it to the user
+  local notebook_dir = vim.fn.fnamemodify(file_path, ":h")
+  local notebook_name = vim.fn.fnamemodify(file_path, ":t")
+  
+  vim.defer_fn(function()
+    vim.notify(string.format(
+      "Jupyter server starting. Your notebook should open in a browser window. "..
+      "If not, look for URL in terminal or navigate to: \n" ..
+      "http://localhost:8888/notebooks/%s", 
+      notebook_name), 
+      vim.log.levels.INFO)
+  end, 2000)
+end
+
 -- Register module commands
 function M.setup()
   -- Create user commands
@@ -293,6 +346,11 @@ function M.setup()
   
   vim.api.nvim_create_user_command('JupyterRestartKernel', function()
     M.restart_kernel()
+  end, {})
+  
+  -- Add command to open in Jupyter server
+  vim.api.nvim_create_user_command('JupyterOpenServer', function()
+    M.open_in_jupyter_server()
   end, {})
 end
 

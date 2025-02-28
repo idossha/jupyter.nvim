@@ -113,6 +113,8 @@ Jupyter.nvim provides several user commands:
 - `:JupyterRestartKernel` - Restart the Jupyter kernel
 - `:JupyterWorkspace` - Open the workspace panel
 - `:JupyterKeymapHelp` - Show a help window with all keymaps and descriptions
+- `:JupyterToggleVisual` - Toggle visual cell borders on/off
+- `:JupyterOpenServer` - Open the current notebook in a Jupyter web server
 
 ## Keyboard Shortcuts
 

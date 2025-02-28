@@ -7,27 +7,32 @@ cell_ui.ns_id = vim.api.nvim_create_namespace("jupyter_cell_highlights")
 -- Store cell markers for all buffers
 cell_ui.buffer_cells = {}
 
+-- Flag to control visual rendering (enabled by default)
+cell_ui.visual_enabled = true
+
 -- Colors
 local colors = {
-  -- Even more subtle, professional colors
-  code_cell_bg = "#1f1f1f", -- Very subtle dark gray for code cells
+  -- Border colors only - no background highlights
   code_border = "#4b6983", -- Muted blue for code cell borders
-  markdown_cell_bg = "#1f1f1f", -- Same as code cell - no difference in content
   markdown_border = "#5a7a4f", -- Muted green for markdown cell borders
-  active_cell_bg = "#242424", -- Slightly lighter when active
-  active_cell_border = "#5e81ac", -- Muted blue when active
+  active_border = "#5e81ac", -- Muted blue when active
   execution_count_bg = "#3b4252", -- Very dark gray for execution count
   running_indicator = "#d08770" -- Muted orange for running indicator
 }
 
 -- Create highlight groups
 function cell_ui.setup_highlights()
+  -- Border highlights only - no background colors
   vim.cmd("highlight default JupyterCodeCellBorder guifg=" .. colors.code_border .. " gui=bold")
-  vim.cmd("highlight default JupyterCodeCell guibg=" .. colors.code_cell_bg)
   vim.cmd("highlight default JupyterMarkdownCellBorder guifg=" .. colors.markdown_border .. " gui=bold")
-  vim.cmd("highlight default JupyterMarkdownCell guibg=" .. colors.markdown_cell_bg)
-  vim.cmd("highlight default JupyterActiveCell guibg=" .. colors.active_cell_bg)
-  vim.cmd("highlight default JupyterActiveCellBorder guifg=" .. colors.active_cell_border .. " gui=bold")
+  vim.cmd("highlight default JupyterActiveCellBorder guifg=" .. colors.active_border .. " gui=bold")
+  
+  -- Empty background highlights (transparent)
+  vim.cmd("highlight default JupyterCodeCell guibg=NONE")
+  vim.cmd("highlight default JupyterMarkdownCell guibg=NONE")
+  vim.cmd("highlight default JupyterActiveCell guibg=NONE")
+  
+  -- Execution and running indicators
   vim.cmd("highlight default JupyterExecutionCount guibg=" .. colors.execution_count_bg .. " guifg=#ffffff gui=bold")
   vim.cmd("highlight default JupyterRunningIndicator guifg=" .. colors.running_indicator .. " gui=bold")
   
@@ -168,6 +173,11 @@ function cell_ui.render_highlights(bufnr)
   cell_ui.clear_highlights(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, cell_ui.virt_text_ns, 0, -1)
   
+  -- If visual rendering is disabled, exit early
+  if not cell_ui.visual_enabled then
+    return
+  end
+  
   -- Get cursor position to highlight active cell
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local cursor_line = cursor_pos[1]
@@ -185,12 +195,13 @@ function cell_ui.render_highlights(bufnr)
     local highlight_group, border_group, title_text
     
     -- Determine highlight groups based on cell type and active state
-    if is_active then
-      highlight_group = "JupyterActiveCell"
-      border_group = "JupyterActiveCellBorder"
-    elseif cell.type == "markdown" then
+    if cell.type == "markdown" then
+      -- Markdown cells always use markdown colors, even when active
       highlight_group = "JupyterMarkdownCell"
       border_group = "JupyterMarkdownCellBorder"
+    elseif is_active then
+      highlight_group = "JupyterActiveCell"
+      border_group = "JupyterActiveCellBorder"
     else
       highlight_group = "JupyterCodeCell"
       border_group = "JupyterCodeCellBorder"
@@ -259,13 +270,8 @@ function cell_ui.render_highlights(bufnr)
         })
       end
       
-      -- Apply subtle background highlighting to the cell content
-      if cell.type == "code" or is_active then
-        -- Content area - use subtle highlight for code cells only
-        for line = cell.line_num + 1, cell.end_line do
-          vim.api.nvim_buf_add_highlight(bufnr, cell_ui.ns_id, highlight_group, line - 1, 0, -1)
-        end
-      end
+      -- No background highlighting for cell content - we only want borders
+      -- We're keeping this comment as a placeholder in case we want to add highlighting in the future
     end
   end
 end
@@ -313,10 +319,47 @@ function cell_ui.setup_autocmds()
   ]])
 end
 
+-- Toggle visual rendering of cells
+function cell_ui.toggle_visual_rendering()
+  cell_ui.visual_enabled = not cell_ui.visual_enabled
+  
+  -- Force refresh all open Jupyter notebook buffers
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name:match("%.ipynb$") then
+        -- Check if buffer is loaded
+        if vim.api.nvim_buf_is_loaded(buf) then
+          -- If rendering is enabled, show the cells
+          if cell_ui.visual_enabled then
+            cell_ui.scan_buffer_cells(buf)
+            cell_ui.render_highlights(buf)
+          else
+            -- If disabled, clear any existing highlights
+            cell_ui.clear_highlights(buf)
+            vim.api.nvim_buf_clear_namespace(buf, cell_ui.virt_text_ns, 0, -1)
+          end
+        end
+      end
+    end
+  end
+  
+  -- Notify the user of the change
+  local status = cell_ui.visual_enabled and "enabled" or "disabled"
+  vim.notify("Jupyter cell visual rendering " .. status, vim.log.levels.INFO)
+  
+  return cell_ui.visual_enabled
+end
+
 -- Initialize cell UI
 function cell_ui.setup()
   cell_ui.setup_highlights()
   cell_ui.setup_autocmds()
+  
+  -- Create user command for toggling visual rendering
+  vim.api.nvim_create_user_command('JupyterToggleVisual', function()
+    cell_ui.toggle_visual_rendering()
+  end, {})
 end
 
 return cell_ui

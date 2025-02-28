@@ -39,6 +39,8 @@ config.settings = {
     restart_kernel    = { key = "<leader>jk", desc = "Restart Jupyter kernel" },
     open_workspace    = { key = "<leader>jw", desc = "Open the Jupyter workspace panel" },
     toggle_output     = { key = "<leader>jo", desc = "Toggle between float/split output display" },
+    toggle_visual     = { key = "<leader>jv", desc = "Toggle visual cell borders" },
+    open_in_browser   = { key = "<leader>jb", desc = "Open notebook in Jupyter browser" },
   },
 }
 
@@ -129,6 +131,16 @@ function config.setup(user_config)
     local mode = config.settings.output_style == "float" and "floating window" or "split"
     vim.notify("Jupyter output display changed to: " .. mode, vim.log.levels.INFO)
   end, config.settings.keymaps.toggle_output.desc, map_opts)
+  
+  -- Toggle visual cell borders
+  create_keymap("n", config.settings.keymaps.toggle_visual.key, function()
+    require("nvim_jupyter.cell_ui").toggle_visual_rendering()
+  end, config.settings.keymaps.toggle_visual.desc, map_opts)
+  
+  -- Open notebook in browser
+  create_keymap("n", config.settings.keymaps.open_in_browser.key, function()
+    require("nvim_jupyter.runner").open_in_jupyter_server()
+  end, config.settings.keymaps.open_in_browser.desc, map_opts)
 end
 
 -- Print keymap help to a floating window
