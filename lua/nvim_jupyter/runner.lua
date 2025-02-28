@@ -121,11 +121,10 @@ function M.start_kernel()
             -- End of variables listing - process them
             pcall(function()
               local var_output = {}
-              -- Find variable list output in buffer
+              -- Collect all lines from output buffer 
+              -- that might contain the JSON variable data
               for _, l in ipairs(M.output_buffer) do
-                if l:match("^%[.*%]$") then
-                  table.insert(var_output, l)
-                end
+                table.insert(var_output, l)
               end
               workspace.update_variables(M.kernel_channel, var_output)
             end)

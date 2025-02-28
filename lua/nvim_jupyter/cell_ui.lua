@@ -183,9 +183,6 @@ function cell_ui.render_highlights(bufnr)
   local cursor_line = cursor_pos[1]
   local active_cell = cell_ui.find_cell_at_line(bufnr, cursor_line)
   
-  -- Check if we're in insert mode - we'll handle active cells differently
-  local is_insert_mode = vim.api.nvim_get_mode().mode:match("i")
-  
   -- Get editor width for borders
   local width = vim.api.nvim_win_get_width(0) - 1
   
@@ -216,62 +213,46 @@ function cell_ui.render_highlights(bufnr)
         or "CODE CELL"
     end
     
-    -- Skip visual rendering for active cell in insert mode
-    if is_active and is_insert_mode then
-      -- In insert mode, only hide the marker, don't add borders for active cell
-      vim.api.nvim_buf_add_highlight(bufnr, cell_ui.ns_id, "JupyterHiddenMarker", cell.line_num - 1, 0, -1)
-      
-      -- Still apply subtle highlighting to content
-      for line = cell.line_num + 1, cell.end_line do
-        vim.api.nvim_buf_add_highlight(bufnr, cell_ui.ns_id, highlight_group, line - 1, 0, -1)
-      end
-    else
-      -- Normal visualization for non-active cells or active cell in normal mode
-      
-      -- Add virtual text (overlay) to replace the "# %%" with a nice border
-      -- Top border (full width)
-      local top_border = "┌" .. string.rep("─", width - 2) .. "┐"
+    -- Add virtual text (overlay) to replace the "# %%" with a nice border
+    -- Top border (full width)
+    local top_border = "┌" .. string.rep("─", width - 2) .. "┐"
+    vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
+      virt_text = {{top_border, border_group}},
+      virt_text_pos = "overlay",
+      hl_mode = "combine",
+    })
+    
+    -- Title line (middle)
+    local left_padding = math.floor((width - #title_text - 2) / 2)
+    local right_padding = width - #title_text - 2 - left_padding
+    local title_line = "│" .. string.rep(" ", left_padding) .. title_text .. string.rep(" ", right_padding) .. "│"
+    
+    -- Add the title as virtual text
+    vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
+      virt_text = {{title_line, border_group}},
+      virt_text_pos = "eol",
+      hl_mode = "combine",
+    })
+    
+    -- Bottom border (full width, added after the marker line)
+    local bottom_border = "└" .. string.rep("─", width - 2) .. "┘"
+    vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
+      virt_text = {{bottom_border, border_group}},
+      virt_text_pos = "right_align",
+      hl_mode = "combine",
+    })
+    
+    -- Hide the actual "# %%" marker line
+    vim.api.nvim_buf_add_highlight(bufnr, cell_ui.ns_id, "JupyterHiddenMarker", cell.line_num - 1, 0, -1)
+    
+    -- Add cell running indicator if needed
+    if cell.running then
+      -- Add a running indicator at the end of the title line
       vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
-        virt_text = {{top_border, border_group}},
-        virt_text_pos = "overlay",
-        hl_mode = "combine",
-      })
-      
-      -- Title line (middle)
-      local left_padding = math.floor((width - #title_text - 2) / 2)
-      local right_padding = width - #title_text - 2 - left_padding
-      local title_line = "│" .. string.rep(" ", left_padding) .. title_text .. string.rep(" ", right_padding) .. "│"
-      
-      -- Add the title as virtual text
-      vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
-        virt_text = {{title_line, border_group}},
-        virt_text_pos = "eol",
-        hl_mode = "combine",
-      })
-      
-      -- Bottom border (full width, added after the marker line)
-      local bottom_border = "└" .. string.rep("─", width - 2) .. "┘"
-      vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
-        virt_text = {{bottom_border, border_group}},
+        virt_text = {{"[RUNNING]", "JupyterRunningIndicator"}},
         virt_text_pos = "right_align",
         hl_mode = "combine",
       })
-      
-      -- Hide the actual "# %%" marker line
-      vim.api.nvim_buf_add_highlight(bufnr, cell_ui.ns_id, "JupyterHiddenMarker", cell.line_num - 1, 0, -1)
-      
-      -- Add cell running indicator if needed
-      if cell.running then
-        -- Add a running indicator at the end of the title line
-        vim.api.nvim_buf_set_extmark(bufnr, cell_ui.virt_text_ns, cell.line_num - 1, 0, {
-          virt_text = {{"[RUNNING]", "JupyterRunningIndicator"}},
-          virt_text_pos = "right_align",
-          hl_mode = "combine",
-        })
-      end
-      
-      -- No background highlighting for cell content - we only want borders
-      -- We're keeping this comment as a placeholder in case we want to add highlighting in the future
     end
   end
 end
@@ -311,10 +292,6 @@ function cell_ui.setup_autocmds()
       autocmd TextChanged,TextChangedI *.ipynb lua require("nvim_jupyter.cell_ui").render_highlights()
       autocmd WinScrolled *.ipynb lua require("nvim_jupyter.cell_ui").render_highlights()
       autocmd VimResized *.ipynb lua require("nvim_jupyter.cell_ui").render_highlights()
-      
-      " Update visual rendering when switching between insert and normal mode
-      autocmd InsertEnter *.ipynb lua require("nvim_jupyter.cell_ui").render_highlights()
-      autocmd InsertLeave *.ipynb lua require("nvim_jupyter.cell_ui").render_highlights()
     augroup END
   ]])
 end

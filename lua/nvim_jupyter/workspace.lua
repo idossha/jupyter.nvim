@@ -81,8 +81,88 @@ function workspace.collect_variables(kernel_id)
     return
   end
   
-  -- Run %who command in the kernel to get a list of variables
-  vim.fn.chansend(kernel_id, "%who_ls\nprint('<<<VARIABLES_END>>>')\n")
+  -- First, run a custom command to get all variables and their values
+  -- This creates a custom representation of all variables in the global namespace
+  local inspect_cmd = [[
+import sys, json
+from IPython import get_ipython
+shell = get_ipython()
+
+# Get list of user variables
+user_ns = shell.user_ns
+var_names = sorted([n for n in user_ns if not n.startswith('_') and n not in ['exit', 'quit', 'get_ipython']])
+
+# Build variable info with type and repr value
+var_info = {}
+for name in var_names:
+    var = user_ns[name]
+    var_type = type(var).__name__
+    
+    # Get string representation in a safe way
+    try:
+        # Handle different types with specific formatting
+        if var_type in ('list', 'tuple', 'set', 'dict'):
+            # For collections, show length and sample
+            length = len(var)
+            if length == 0:
+                var_repr = f"Empty {var_type}"
+            elif var_type == 'dict':
+                if length <= 3:
+                    sample = str(var)[:50]
+                else:
+                    sample = str(dict(list(var.items())[:3]))[:50] + "..."
+                var_repr = f"{var_type}[{length} items] {sample}"
+            else:
+                if length <= 3:
+                    sample = str(var)[:50]
+                else:
+                    sample = str(list(var)[:3])[:50] + "..."
+                var_repr = f"{var_type}[{length}] {sample}"
+        elif var_type == 'str':
+            # For strings, show length and preview
+            if len(var) > 40:
+                var_repr = f'"{var[:40]}..."[{len(var)}]'
+            else:
+                var_repr = f'"{var}"'
+        elif var_type in ('int', 'float', 'bool'):
+            # For simple types, just show value
+            var_repr = str(var)
+        elif var_type == 'module':
+            # For modules, show the module name
+            var_repr = getattr(var, '__name__', str(var))
+        elif var_type == 'function':
+            # For functions, show signature if available
+            import inspect
+            try:
+                signature = str(inspect.signature(var))
+                var_repr = f"function{signature}"
+            except ValueError:
+                var_repr = "function"
+        elif var_type == 'ndarray':
+            # Special handling for numpy arrays
+            var_repr = f"ndarray(shape={var.shape}, dtype={var.dtype})"
+        elif var_type == 'DataFrame':
+            # Special handling for pandas DataFrames
+            var_repr = f"DataFrame[{var.shape[0]}×{var.shape[1]}]"
+        else:
+            # For other types, use standard repr with truncation
+            raw_repr = repr(var)
+            var_repr = (raw_repr[:60] + '...') if len(raw_repr) > 60 else raw_repr
+    except Exception as e:
+        var_repr = f"<Error: {str(e)[:30]}>"
+    
+    var_info[name] = {
+        "type": var_type,
+        "value": var_repr
+    }
+
+# Print as JSON for easy parsing
+print(json.dumps(var_info))
+print("<<<VARIABLES_END>>>")
+]]
+
+  -- Send the command to inspect variables
+  vim.fn.chansend(kernel_id, inspect_cmd .. "\n")
   
   -- Variables will be collected asynchronously by the kernel's stdout handler
 end
@@ -93,42 +173,32 @@ function workspace.update_variables(kernel_id, var_output)
     workspace.variables[kernel_id] = {}
   end
   
-  -- Clear variable details first (keeping any type information)
-  for k, _ in pairs(workspace.variables[kernel_id]) do
-    workspace.variables[kernel_id][k].value = nil
-  end
-  
-  -- Process output from %who_ls
+  -- Process output containing JSON variable data
   if var_output and #var_output > 0 then
-    -- Extract the variable names (should be a Python list)
+    -- Try to find a JSON object in the output
     local var_str = table.concat(var_output, "\n")
+    local json_start = var_str:find("{")
+    local json_end = var_str:find("}", var_str:len() - 10) -- Look near the end
     
-    -- Try to extract the variable names (format: ['var1', 'var2', ...])
-    local var_list = var_str:match("%[(.-)%]")
-    if var_list then
-      for var_name in var_list:gmatch("'([^']+)'") do
-        -- Register the variable
-        if not workspace.variables[kernel_id][var_name] then
+    if json_start and json_end then
+      local json_data = var_str:sub(json_start, json_end)
+      
+      -- Try to decode the JSON data
+      local success, var_info = pcall(vim.fn.json_decode, json_data)
+      if success and type(var_info) == "table" then
+        -- Replace the entire variables table with the new data
+        workspace.variables[kernel_id] = {}
+        
+        -- Process each variable
+        for var_name, info in pairs(var_info) do
           workspace.variables[kernel_id][var_name] = {
             name = var_name,
-            type = "Unknown"
+            type = info.type or "Unknown",
+            value = info.value or ""
           }
         end
       end
     end
-  end
-  
-  -- Now fetch type information for each variable
-  for var_name, _ in pairs(workspace.variables[kernel_id]) do
-    -- Send commands to get variable type
-    local cmd = string.format(
-      "try:\n" ..
-      "    print(f\"'%s': {type(%s).__name__}\")\n" ..
-      "except:\n" ..
-      "    print(\"'%s': Unknown\")\n", 
-      var_name, var_name, var_name)
-    
-    vim.fn.chansend(kernel_id, cmd)
   end
 end
 
@@ -196,10 +266,21 @@ function workspace.show_ui()
         end
         table.sort(var_names)
         
-        -- Add each variable
+        -- Add each variable with value
         for _, name in ipairs(var_names) do
           local var = vars[name]
-          table.insert(lines, string.format("    - %s (%s)", var.name, var.type or "Unknown"))
+          if var.value then
+            -- If we have a value, show name = value (type)
+            table.insert(lines, string.format("    - %s = %s (%s)", 
+              var.name, 
+              var.value, 
+              var.type or "Unknown"))
+          else
+            -- Fallback to just showing name and type
+            table.insert(lines, string.format("    - %s (%s)", 
+              var.name, 
+              var.type or "Unknown"))
+          end
         end
       end
     end
