@@ -30,6 +30,9 @@ function M.start_kernel()
     local bufnr = vim.api.nvim_get_current_buf()
     local file_path = vim.api.nvim_buf_get_name(bufnr)
     
+    -- Notify user that kernel is starting
+    vim.notify("Starting Jupyter kernel...", vim.log.levels.INFO)
+    
     M.kernel_channel = vim.fn.jobstart(kernel_cmd, {
       stdout_buffered = false,
       stderr_buffered = false,
@@ -54,40 +57,48 @@ function M.start_kernel()
               M.execution_count = tonumber(execution_count_match)
             end
             
-            -- Get the current cell index
+            -- Get the current cell index - use protected call since cell_ui may fail
             local _, end_line = cell.get_current_cell_range()
             local bufnr = vim.api.nvim_get_current_buf()
-            local cell_idx = cell_ui.find_cell_at_line(bufnr, end_line)
             
-            -- Update execution count in cell_ui
-            if cell_idx then
-              cell_ui.set_execution_count(bufnr, cell_idx, M.execution_count)
-              cell_ui.set_cell_running(bufnr, cell_idx, false)
+            -- Update cell_ui with a protected call
+            local cell_ui_loaded, result = pcall(function() 
+              local cell_idx = cell_ui.find_cell_at_line(bufnr, end_line)
+              if cell_idx then
+                cell_ui.set_execution_count(bufnr, cell_idx, M.execution_count)
+                cell_ui.set_cell_running(bufnr, cell_idx, false)
+                return cell_idx
+              end
+              return nil
+            end)
+            
+            local cell_index = nil
+            if cell_ui_loaded and result then
+              cell_index = result
             end
             
             -- Get the cell outputs if available
-            if current_nb and current_nb.cells then
-              local cell_index = cell_ui.find_cell_at_line(bufnr, end_line)
-              if cell_index and current_nb.cells[cell_index] then
+            if current_nb and current_nb.cells and cell_index then
+              if current_nb.cells[cell_index] then
                 cell_outputs = current_nb.cells[cell_index].outputs
               end
             end
             
             -- Display output based on config setting
-            if config.settings.output_style == "split" then
+            if config.settings and config.settings.output_style == "split" then
               output.display_in_split(final_output, cell_outputs)
             else
               output.display_output(final_output, cell_outputs)
             end
             
-            -- Record execution in workspace
-            workspace.record_execution(file_path)
+            -- Record execution in workspace with protected call
+            pcall(function() workspace.record_execution(file_path) end)
             
             -- Clear output buffer
             M.output_buffer = {}
             
             -- Move to next cell if enabled
-            if config.settings.move_to_next_cell then
+            if config.settings and config.settings.move_to_next_cell then
               vim.schedule(function() cell.move_to_next_cell() end)
             end
           elseif line:match(prompt_pattern) then
@@ -150,17 +161,22 @@ function M.run_current_cell()
     return
   end
   
-  -- Get the current cell index
-  local cell_idx = cell_ui.find_cell_at_line(bufnr, start_line)
+  -- Get the current cell index with protected call
+  local cell_ui_loaded, cell_idx = pcall(function()
+    return cell_ui.find_cell_at_line(bufnr, start_line)
+  end)
   
   -- Mark the cell as running
-  if cell_idx then
-    cell_ui.set_cell_running(bufnr, cell_idx, true)
+  if cell_ui_loaded and cell_idx then
+    pcall(function() cell_ui.set_cell_running(bufnr, cell_idx, true) end)
   end
 
   -- Append our marker so we know when the cell's done
   local code_to_run = code .. "\nprint('" .. marker .. "')\n"
+  
+  -- Send code to kernel and notify user
   vim.fn.chansend(M.kernel_channel, code_to_run .. "\n")
+  vim.notify("Running cell...", vim.log.levels.INFO)
 end
 
 -- Run all cells in the notebook

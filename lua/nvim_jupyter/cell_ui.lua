@@ -9,14 +9,15 @@ cell_ui.buffer_cells = {}
 
 -- Colors
 local colors = {
-  code_cell_bg = "#1a2b3c",
-  code_border = "#3d5a7a",
-  markdown_cell_bg = "#2a2837",
-  markdown_border = "#4d456d",
-  active_cell_bg = "#253040",
-  active_cell_border = "#5194d0",
-  execution_count_bg = "#39506d",
-  running_indicator = "#f0c674"
+  -- More subtle background colors
+  code_cell_bg = "#1a1a1a", -- Almost black, more professional look
+  code_border = "#3465a4", -- Blue border for code
+  markdown_cell_bg = "#1c1c1c", -- Slightly different black for markdown
+  markdown_border = "#73d216", -- Green border for markdown
+  active_cell_bg = "#242424", -- Slightly lighter when active
+  active_cell_border = "#729fcf", -- Light blue when active
+  execution_count_bg = "#555753", -- Dark gray for execution count
+  running_indicator = "#f57900" -- Orange for running indicator
 }
 
 -- Create highlight groups
@@ -205,16 +206,30 @@ function cell_ui.enhance_cell_marker(bufnr, line_num, cell_type)
     marker = "# %% [markdown]"
   end
   
-  -- Create a border line with repeating characters
+  -- Create professional cell separator with clear visual distinction
   local width = math.min(vim.api.nvim_win_get_width(0) - 5, 80)
-  local border = marker .. string.rep("━", width - string.len(marker))
+  
+  -- Create a more distinct cell marker
+  local border_top = "╒" .. string.rep("═", width - 3) .. "╕"
+  local border_bottom = "╘" .. string.rep("═", width - 3) .. "╛"
+  
+  -- Insert the border lines and cell marker
+  local cell_marker = marker
+  if cell_type == "code" then
+    cell_marker = marker .. " [Code Cell]"
+  else
+    cell_marker = marker .. " [Markdown]"
+  end
   
   -- Update the line in the buffer
-  vim.api.nvim_buf_set_lines(bufnr, line_num-1, line_num, false, {border})
+  vim.api.nvim_buf_set_lines(bufnr, line_num-1, line_num, false, {border_top, cell_marker, border_bottom})
   
   -- Re-scan and highlight cells
   cell_ui.scan_buffer_cells(bufnr)
   cell_ui.render_highlights(bufnr)
+  
+  -- Return the number of lines we inserted (so we can adjust cursor position)
+  return 3
 end
 
 -- Setup autocommands for cell highlighting
