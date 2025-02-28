@@ -280,6 +280,56 @@ function M.restart_kernel()
   end
 end
 
+-- Function to fix notebook metadata if needed
+local function fix_notebook_metadata(file_path)
+  -- Read the file
+  local f = io.open(file_path, "r")
+  if not f then
+    return false
+  end
+  
+  local content = f:read("*all")
+  f:close()
+  
+  -- Try to decode the JSON
+  local status, notebook = pcall(vim.fn.json_decode, content)
+  if not status or type(notebook) ~= "table" then
+    return false
+  end
+  
+  -- Check for problems in metadata and cells
+  local needs_fix = false
+  
+  -- Fix empty metadata array (should be an object)
+  if type(notebook.metadata) == "table" and vim.tbl_islist(notebook.metadata) and #notebook.metadata == 0 then
+    notebook.metadata = {}
+    needs_fix = true
+  end
+  
+  -- Fix cell metadata
+  if notebook.cells then
+    for _, cell in ipairs(notebook.cells) do
+      if type(cell.metadata) == "table" and vim.tbl_islist(cell.metadata) and #cell.metadata == 0 then
+        cell.metadata = {}
+        needs_fix = true
+      end
+    end
+  end
+  
+  -- If we found issues, write the fixed notebook back
+  if needs_fix then
+    local fixed_content = vim.fn.json_encode(notebook)
+    f = io.open(file_path, "w")
+    if f then
+      f:write(fixed_content)
+      f:close()
+      return true
+    end
+  end
+  
+  return false
+end
+
 -- Function to launch the notebook in a Jupyter server
 function M.open_in_jupyter_server()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -294,40 +344,45 @@ function M.open_in_jupyter_server()
   -- Save the file first to ensure all changes are written
   vim.cmd("write")
   
-  -- Determine the proper command based on the Jupyter version
-  local cmd = "jupyter notebook"
-  
-  -- Check if the more modern jupyter-lab is available
-  if vim.fn.executable("jupyter-lab") == 1 then
-    cmd = "jupyter-lab"
+  -- Try to fix any compatibility issues with the notebook format
+  local fixed = fix_notebook_metadata(file_path)
+  if fixed then
+    vim.notify("Fixed notebook metadata for better compatibility", vim.log.levels.INFO)
   end
   
-  -- Build the command with the file path
-  local full_cmd = cmd .. " " .. vim.fn.shellescape(file_path)
+  -- Use the directory-based approach which is more reliable
+  local notebook_dir = vim.fn.fnamemodify(file_path, ":h")
+  
+  -- Determine the proper command based on the Jupyter version
+  local cmd
+  if vim.fn.executable("jupyter-lab") == 1 then
+    cmd = "jupyter-lab --notebook-dir=" .. vim.fn.shellescape(notebook_dir)
+  else
+    cmd = "jupyter notebook --notebook-dir=" .. vim.fn.shellescape(notebook_dir)
+  end
   
   -- Notify the user
-  vim.notify("Opening notebook in Jupyter server...", vim.log.levels.INFO)
+  vim.notify("Opening Jupyter server in directory: " .. notebook_dir, vim.log.levels.INFO)
   
   -- Launch the Jupyter server in the background
-  vim.fn.jobstart(full_cmd, {
+  vim.fn.jobstart(cmd, {
     detach = true,
     on_exit = function(_, exit_code)
       if exit_code ~= 0 then
-        vim.notify("Failed to open notebook in Jupyter server (exit code: " .. exit_code .. ")", 
+        vim.notify("Failed to open Jupyter server (exit code: " .. exit_code .. ")", 
                   vim.log.levels.ERROR)
       end
     end
   })
   
-  -- Try to determine the URL and show it to the user
-  local notebook_dir = vim.fn.fnamemodify(file_path, ":h")
+  -- Show information about how to navigate to the notebook
   local notebook_name = vim.fn.fnamemodify(file_path, ":t")
   
   vim.defer_fn(function()
     vim.notify(string.format(
-      "Jupyter server starting. Your notebook should open in a browser window. "..
-      "If not, look for URL in terminal or navigate to: \n" ..
-      "http://localhost:8888/notebooks/%s", 
+      "Jupyter server starting. Your notebook should be available at:\n" ..
+      "http://localhost:8888/notebooks/%s\n" ..
+      "Or navigate to it through the Jupyter file browser.", 
       notebook_name), 
       vim.log.levels.INFO)
   end, 2000)

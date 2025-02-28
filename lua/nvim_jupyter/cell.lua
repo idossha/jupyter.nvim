@@ -31,6 +31,25 @@ function cell.load_ipynb()
     return
   end
 
+  -- Fix any issues with the notebook format
+  -- Empty array metadata should be empty objects instead
+  if type(notebook.metadata) == "table" and vim.tbl_islist(notebook.metadata) and #notebook.metadata == 0 then
+    notebook.metadata = {}
+  end
+  
+  -- Fix cell metadata
+  if notebook.cells then
+    for _, cell in ipairs(notebook.cells) do
+      if type(cell.metadata) == "table" and vim.tbl_islist(cell.metadata) and #cell.metadata == 0 then
+        cell.metadata = {}
+      end
+      -- Ensure cell has outputs array
+      if not cell.outputs then
+        cell.outputs = {}
+      end
+    end
+  end
+
   -- Store the entire notebook in memory
   cell.current_notebook = notebook
 
@@ -80,11 +99,11 @@ end
 function cell.save_as_ipynb()
   -- We must have read or created the notebook
   if not cell.current_notebook then
-    -- If we haven't read an existing notebook, build a fresh one
+    -- If we haven't read an existing notebook, build a fresh one with proper formatting
     cell.current_notebook = {
       nbformat = 4,
       nbformat_minor = 5,
-      metadata = {},
+      metadata = {}, -- Empty object
       cells = {}
     }
   end
@@ -101,7 +120,7 @@ function cell.save_as_ipynb()
     if #current_source > 0 then
       table.insert(new_cells, {
         cell_type = current_cell_type,
-        metadata = {},
+        metadata = {}, -- Empty object, not array
         execution_count = nil,
         outputs = {}, -- We'll keep original outputs if they exist below
         source = vim.tbl_map(function(s) return s .. "\n" end, current_source),
